@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="364b3f13-d79a-4812-89da-42f2500f3045" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="77b062f0-7010-4dd2-b760-5e56a416a45d" />
+	<db:config name="Database_Config_craftsoft" doc:name="Database Config" doc:id="9b736a8d-ad52-4f94-ad11-7c266c85613e" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="root" database="BATCH23_PROJECT"/>
+	</db:config>
+	<http:request-config name="HTTP_Request_configuration_numverifyAPI" doc:name="HTTP Request configuration" doc:id="14d2fe39-4750-45c1-8401-a4490e3a0325" basePath="/api" >
+		<http:request-connection host="apilayer.net" />
+	</http:request-config>
+	<flow name="post-customer-Flow" doc:id="871b2a89-4601-449f-acf6-242850bddd22" >
+		<http:listener doc:name="POST/ customers" doc:id="59d7d978-8609-4fae-a08d-f642b042e5d5" config-ref="HTTP_Listener_config" path="/phone" allowedMethods="POST"/>
+		<ee:transform doc:name="original-info" doc:id="244a9df7-6cc8-49a0-887b-8fa6a6330a59" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="cell_phone" ><![CDATA[payload.phone]]></ee:set-variable>
+				<ee:set-variable variableName="originalPayload" ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<validation:matches-regex doc:name="phone-validation-northAmerica" doc:id="d3828e6c-8131-44d7-936f-da94d2474340" config-ref="Validation_Config" value="#[vars.cell_phone]" regex="^(?:\+?1?[-, ,.,]?)?\(?[0-9]{3}\)?[-,., ,]?[0-9]{3}[-,., ,]?[0-9]{4}$" message="Customer cell phone  is not valid in north america !"/>
+		<http:request method="POST" doc:name="calls-to-numverifyAPI" doc:id="8c54ce9f-eecb-47fb-af4a-21872a15292d" config-ref="HTTP_Request_configuration_numverifyAPI" path="/validate">
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"access_key" : "6f73e1a6f5145abad36c0a456419ba70",
+	"number" : vars.cell_phone
+}]]]></http:query-params>
+		</http:request>
+		<choice doc:name="Choice" doc:id="d32d9c31-6a57-4bff-ab9b-857c845edbb4" >
+			<when expression="#[payload.valid==true]">
+				<set-payload value="#[vars.originalPayload]" doc:name="Set Payload" doc:id="4124868b-a4b3-41f2-a896-abdcce68ddc0" />
+				<flow-ref doc:name="phone-validator-insert-to-craftsoftDB" doc:id="9025a6c2-7f60-4f6b-996d-fc0207beb00f" name="phone-validator-insert-to-craftsoftDB"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="38e62bbc-a615-41f5-855e-79ad6f6b3ba3" message='#["The number you have entered " ++ vars.cell_phone ++ " is not valid either locally or intl."]'/>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>

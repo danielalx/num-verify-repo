@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<db:config name="Database_Config_Bu_Application" doc:name="Database Config" doc:id="8b6babb0-7611-4588-8e73-362db23faba2" >
+		<db:my-sql-connection host="congo.c3w6upfzlwwe.us-west-1.rds.amazonaws.com" port="3306" user="mulesoft" password="mulesoft" database="congo" />
+	</db:config>
+	<flow name="phone-validator-insert-to-craftsoftDB" doc:id="10641f88-10fc-4586-9f77-9d40760dcc82">
+		<db:insert doc:name="insert-to-craftsoft" doc:id="b88007e1-bcb4-4bd6-8ea5-89e504a3a3cc" config-ref="Database_Config_craftsoft">
+			<db:sql ><![CDATA[INSERT INTO customers (id,first_name,last_name,email,phone)
+VALUES (:id,:first_name,:last_name,:email,:phone)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	id: payload.CorrelationID,
+	first_name: payload.'First name',
+	last_name: payload.'Last name',
+	email: payload.'Primary email',
+	phone: payload.phone
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="0b82bb66-8aff-4101-9de6-092bffb20493">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	msg: "Inserted sucessfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="calls-to-Bu_Application" doc:id="35add3a8-8ae2-44d3-99c0-69ce87c21b55" >
+		<http:listener doc:name="Listener" doc:id="43c16705-cad7-42fc-bb42-ae5ee183aa05" config-ref="HTTP_Listener_config" path="/bu" />
+		<db:select doc:name="call-to-Bu Web Service" doc:id="66e80f6a-3dd2-40c5-98b9-b428bd275c51" config-ref="Database_Config_Bu_Application" >
+			<db:sql ><![CDATA[Select * from contacts;]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="08a659fa-5f81-472a-beb9-8b48d2245197" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-customers-byID-Flow" doc:id="fbf5f80d-5698-4e00-9354-8a6522d324bb" >
+		<http:listener doc:name="GET/ customersByID" doc:id="e2461685-3abd-43ae-9702-b8455517abb4" config-ref="HTTP_Listener_config" path="/phone" allowedMethods="GET"/>
+		<db:select doc:name="Select customersByID" doc:id="c6b82f9e-b2f4-4033-9dda-6b78d2832bb9" config-ref="Database_Config_craftsoft">
+			<db:sql ><![CDATA[SELECT * FROM customers 
+WHERE id=:id;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{ id: attributes.queryParams.CorrelationID }]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="d6ae920c-71ed-4aec-895e-d23c176c8e39" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
